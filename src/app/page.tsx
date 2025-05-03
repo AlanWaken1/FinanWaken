@@ -1,103 +1,193 @@
-import Image from "next/image";
+// src/app/page.tsx
+'use client'; // <--- ¡Importante! Añadir esto para usar hooks y efectos
 
-export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+import { useEffect } from "react";
+import Link from "next/link";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { IconChartBar, IconCoin, IconCreditCard, IconReceipt, IconTarget } from "@tabler/icons-react";
+// --- Importar el componente del efecto ---
+import { TypewriterEffectSmooth } from "@/components/ui/typewriter-effect"; // Ajusta la ruta si es diferente
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+export default function HomePage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
+  // Redirigir al dashboard si el usuario ya está autenticado
+  useEffect(() => {
+    if (status === "authenticated") {
+      router.push("/dashboard");
+    }
+  }, [status, router]);
+
+  // Si está cargando o ya está autenticado, no mostrar nada aún
+  if (status === "loading") {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <p className="text-muted-foreground">Cargando...</p>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+      </div>
+    );
+  }
+
+  // Si está autenticado, no mostramos el contenido de la página de inicio
+  // porque la redirección ya se encargará de llevarlo al dashboard
+  if (status === "authenticated") {
+    return null;
+  }
+
+  // --- Definir las palabras para el efecto ---
+  const typewriterWords = [
+    {
+      text: "FinanWaken",
+      // --- Añadir clases de Tailwind para el color verde ---
+      className: "text-green-600 dark:text-green-500", // Puedes ajustar el tono de verde
+    },
+  ];
+
+  return (
+    <div className="container mx-auto px-4 py-12">
+      {/* Hero Section */}
+      <section className="flex flex-col items-center text-center my-12">
+
+        {/* --- Reemplazar H1 con TypewriterEffectSmooth --- */}
+        <TypewriterEffectSmooth
+          words={typewriterWords}
+          // Aplicar los estilos del H1 original al componente
+          className="text-4xl md:text-6xl font-bold tracking-tight"
+          // Opcional: Estilizar el cursor también con un color verde
+          cursorClassName="bg-green-600 dark:bg-green-500"
+        />
+        {/* Ya no necesitamos el H1 estático:
+        <h1 className="text-4xl md:text-6xl font-bold tracking-tight">
+          FinanWaken
+        </h1>
+        */}
+
+        <p className="mt-4 text-xl text-muted-foreground max-w-3xl">
+          Tu aplicación personal para el control y seguimiento de finanzas. Administra gastos, ingresos, deudas y metas de ahorro en un solo lugar.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-4 mt-8">
+          <Button size="lg" asChild>
+            <Link href="/register">Comenzar Gratis</Link>
+          </Button>
+          <Button size="lg" variant="outline" asChild>
+            <Link href="/login">Iniciar Sesión</Link>
+          </Button>
+        </div>
+      </section>
+
+      {/* Features */}
+      <section className="my-16">
+        <h2 className="text-3xl font-bold text-center mb-12">
+          Todo lo que necesitas para controlar tus finanzas
+        </h2>
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+          <FeatureCard
+            icon={<IconReceipt className="h-10 w-10 text-red-500" />}
+            title="Control de Gastos"
+            description="Registra y categoriza todos tus gastos para entender hacia dónde va tu dinero."
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
+          <FeatureCard
+            icon={<IconCoin className="h-10 w-10 text-green-500" />}
+            title="Seguimiento de Ingresos"
+            description="Administra tus fuentes de ingreso y mantén un registro claro de tu flujo de dinero."
           />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
+          <FeatureCard
+            icon={<IconCreditCard className="h-10 w-10 text-orange-500" />}
+            title="Gestión de Deudas"
+            description="Controla tus deudas, establece fechas de pago y visualiza tu progreso hacia la libertad financiera."
           />
-          Go to nextjs.org →
-        </a>
+          <FeatureCard
+            icon={<IconTarget className="h-10 w-10 text-blue-500" />}
+            title="Metas de Ahorro"
+            description="Define objetivos financieros y monitorea tu avance para hacerlos realidad."
+          />
+        </div>
+      </section>
+
+      {/* Dashboard Preview */}
+      <section className="my-16">
+        <h2 className="text-3xl font-bold text-center mb-4">
+          Visualiza tus finanzas con claridad
+        </h2>
+        <p className="text-center text-muted-foreground max-w-2xl mx-auto mb-8">
+          Nuestro dashboard intuitivo te muestra un panorama completo de tu situación financiera.
+        </p>
+        <div className="rounded-lg overflow-hidden border shadow-lg">
+          <div className="bg-card p-6 flex items-center justify-between">
+            <h3 className="text-xl font-semibold">Dashboard Financiero</h3>
+            <IconChartBar className="h-6 w-6 text-purple-500" />
+          </div>
+          <div className="bg-background p-8">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <StatCard label="Balance Mensual" value="+$1,540.00" positive />
+              <StatCard label="Ingresos" value="$4,200.00" />
+              <StatCard label="Gastos" value="$2,660.00" />
+              <StatCard label="Ahorros" value="$12,450.00" />
+            </div>
+            <div className="mt-8 h-64 bg-muted/30 rounded-lg flex items-center justify-center">
+              <p className="text-muted-foreground">Visualización de gráficos y estadísticas</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="my-16 text-center">
+        <h2 className="text-3xl font-bold mb-4">
+          Comienza a controlar tus finanzas hoy
+        </h2>
+        <p className="text-muted-foreground max-w-2xl mx-auto mb-8">
+          Regístrate gratis y da el primer paso hacia la estabilidad financiera y el cumplimiento de tus metas.
+        </p>
+        <Button size="lg" asChild>
+          <Link href="/register">Comenzar Ahora</Link>
+        </Button>
+      </section>
+
+      {/* Footer */}
+      <footer className="mt-16 py-8 border-t text-center text-sm text-muted-foreground">
+        <p>© {new Date().getFullYear()} FinanWaken - Todos los derechos reservados</p>
       </footer>
+    </div>
+  );
+}
+
+// --- Los componentes FeatureCard y StatCard se mantienen igual ---
+function FeatureCard({
+  icon,
+  title,
+  description,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="bg-card rounded-lg p-6 border shadow-sm">
+      <div className="mb-4">{icon}</div>
+      <h3 className="text-xl font-semibold mb-2">{title}</h3>
+      <p className="text-muted-foreground">{description}</p>
+    </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  positive,
+}: {
+  label: string;
+  value: string;
+  positive?: boolean;
+}) {
+  return (
+    <div className="bg-card rounded-lg p-4 border">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className={`text-xl font-semibold ${positive ? "text-green-500" : ""}`}>{value}</p>
     </div>
   );
 }
