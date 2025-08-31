@@ -10,7 +10,7 @@ import type { NextAuthConfig } from "next-auth"; // Importar tipo
 // import type { Request } from 'next/server';
 
 // 1. Define tu configuración (como la tenías, pero con el tipo)
-export const authConfig: NextAuthConfig = {
+const authConfig: NextAuthConfig = {
   adapter: PrismaAdapter(prisma),
   providers: [
     // --- Proveedor de Google Activado ---
@@ -26,54 +26,37 @@ export const authConfig: NextAuthConfig = {
         password: { label: "Password", type: "password" }
       },
       // --- Firma y lógica de authorize CORREGIDAS ---
-      async authorize(credentials: Partial<Record<"email" | "password", unknown>>, request: Request): Promise<any | null> {
-        console.log("Intentando autorizar con credenciales:", credentials);
-
-        const email = credentials?.email;
-        const password = credentials?.password;
-
-        // Validar que email y password sean strings válidos
-        if (typeof email !== 'string' || email.trim() === '' || typeof password !== 'string' || password === '') {
-          console.error("Authorize: Email o contraseña no son strings válidos o están vacíos.");
-          // Puedes lanzar un error personalizado si quieres que se muestre en la página de error
-          // import { CredentialsSignin } from "next-auth";
-          // throw new CredentialsSignin("Credenciales inválidas.");
+      async authorize(credentials: Partial<Record<"email" | "password", unknown>>) {
+        if (!credentials?.email || !credentials?.password || 
+            typeof credentials.email !== 'string' || 
+            typeof credentials.password !== 'string') {
           return null;
         }
 
-        // Continuar con la lógica si son strings válidos
         try {
           const user = await prisma.user.findUnique({
-            where: { email: email }
+            where: { email: credentials.email }
           });
 
-          // Usuario no encontrado o no tiene contraseña (puede ser usuario de Google)
           if (!user || !user.password) {
-            console.log(`Authorize: Usuario ${email} no encontrado o sin contraseña.`);
             return null;
           }
 
-          // Comparar contraseñas
-          const isPasswordValid = await bcrypt.compare(password, user.password);
+          const isPasswordValid = await bcrypt.compare(credentials.password, user.password);
 
           if (!isPasswordValid) {
-            console.log(`Authorize: Contraseña incorrecta para ${email}.`);
             return null;
           }
 
-          console.log(`Authorize: Usuario ${email} autenticado correctamente.`);
-          // Éxito: Retornar el objeto usuario esperado por NextAuth
           return {
             id: user.id,
             email: user.email,
             name: user.name,
             image: user.image,
           };
-
-        } catch (dbError) {
-          console.error("Authorize: Error de base de datos:", dbError);
-          // throw new Error("Error interno del servidor"); // Podrías lanzar un error genérico
-          return null; // O simplemente retornar null
+        } catch (error) {
+          console.error("Error de autenticación:", error);
+          return null;
         }
       } // Fin de authorize
     }), // Fin de CredentialsProvider
@@ -91,7 +74,7 @@ export const authConfig: NextAuthConfig = {
     async session({ session, token }) {
       // Verifica que session.user exista antes de asignarle propiedades
       if (token?.id && session.user) {
-        (session.user as any).id = token.id as string; // Castear si es necesario
+        session.user.id = token.id as string; // Castear si es necesario
       }
       return session;
     },
@@ -120,11 +103,8 @@ export const authConfig: NextAuthConfig = {
 };
 
 // 2. Llama a NextAuth y desestructura handlers y auth (y otros)
-const { handlers, auth, signIn, signOut } = NextAuth(authConfig);
+const { handlers } = NextAuth(authConfig);
 
 // 3. EXPORTA EXPLÍCITAMENTE GET Y POST desde handlers
 export const GET = handlers.GET;
 export const POST = handlers.POST;
-
-// 4. TAMBIÉN EXPORTA auth (y otros si los necesitas en otras partes)
-export { auth, signIn, signOut };

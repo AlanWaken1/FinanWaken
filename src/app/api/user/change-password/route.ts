@@ -1,7 +1,7 @@
 // src/app/api/user/change-password/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/app/api/auth/[...nextauth]/route";
+import { auth } from "@/lib/auth";
 import bcrypt from "bcrypt";
 
 export async function POST(request: NextRequest) {

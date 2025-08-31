@@ -1,7 +1,7 @@
 // src/app/api/dashboard/route.ts (actualizado)
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { auth } from "../auth/[...nextauth]/route";
+import { auth } from "@/lib/auth";
 
 export async function GET() {
   try {

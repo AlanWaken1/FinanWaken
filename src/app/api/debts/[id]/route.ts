@@ -1,7 +1,7 @@
 // src/app/api/debts/[id]/route.ts (actualizado)
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/app/api/auth/[...nextauth]/route";
+import { auth } from "@/lib/auth";
 
 export async function PATCH(
   request: NextRequest,
@@ -32,13 +32,17 @@ export async function PATCH(
     }
     
     const body = await request.json();
-    const { remaining, isPaid } = body;
+    const { title, totalAmount, remaining, creditor, startDate, dueDate } = body;
     
     const updatedDebt = await prisma.debt.update({
       where: { id: params.id },
       data: {
+        title: title !== undefined ? title : undefined,
+        totalAmount: totalAmount !== undefined ? parseFloat(totalAmount) : undefined,
         remaining: remaining !== undefined ? parseFloat(remaining) : undefined,
-        isPaid: isPaid !== undefined ? isPaid : undefined
+        creditor: creditor !== undefined ? creditor : undefined,
+        startDate: startDate !== undefined ? new Date(startDate) : undefined,
+        dueDate: dueDate !== undefined ? new Date(dueDate) : undefined
       }
     });
     
@@ -54,8 +58,8 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  context: { params: { id: string } }
+): Promise<Response> {
   try {
     const session = await auth();
     
@@ -69,7 +73,7 @@ export async function DELETE(
     // Verificar que la deuda pertenece al usuario
     const debt = await prisma.debt.findUnique({
       where: {
-        id: params.id
+        id: context.params.id
       }
     });
     
@@ -82,7 +86,7 @@ export async function DELETE(
     
     // Eliminar la deuda y sus pagos asociados (cascada)
     await prisma.debt.delete({
-      where: { id: params.id }
+      where: { id: context.params.id }
     });
     
     return NextResponse.json({ success: true });

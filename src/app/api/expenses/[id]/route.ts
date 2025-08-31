@@ -1,4 +1,3 @@
-// src/app/api/goals/[id]/route.ts (actualizado)
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
@@ -17,36 +16,38 @@ export async function PATCH(
       );
     }
     
-    // Verificar que la meta pertenece al usuario
-    const goal = await prisma.goal.findUnique({
+    // Verificar que el gasto pertenece al usuario
+    const expense = await prisma.expense.findUnique({
       where: {
         id: params.id
       }
     });
     
-    if (!goal || goal.userId !== session.user.id) {
+    if (!expense || expense.userId !== session.user.id) {
       return NextResponse.json(
-        { error: "Meta no encontrada o no autorizada" },
+        { error: "Gasto no encontrado o no autorizado" },
         { status: 404 }
       );
     }
     
     const body = await request.json();
-    const { saved, isAchieved } = body;
+    const { amount, category, description, date } = body;
     
-    const updatedGoal = await prisma.goal.update({
+    const updatedExpense = await prisma.expense.update({
       where: { id: params.id },
       data: {
-        saved: saved !== undefined ? parseFloat(saved) : undefined,
-        isAchieved: isAchieved !== undefined ? isAchieved : undefined
+        amount: amount !== undefined ? parseFloat(amount) : undefined,
+        category: category !== undefined ? category : undefined,
+        description: description !== undefined ? description : undefined,
+        date: date !== undefined ? new Date(date) : undefined
       }
     });
     
-    return NextResponse.json(updatedGoal);
+    return NextResponse.json(updatedExpense);
   } catch (error) {
-    console.error("Error updating goal:", error);
+    console.error("Error updating expense:", error);
     return NextResponse.json(
-      { error: "Error al actualizar la meta" },
+      { error: "Error al actualizar el gasto" },
       { status: 500 }
     );
   }
@@ -66,30 +67,30 @@ export async function DELETE(
       );
     }
     
-    // Verificar que la meta pertenece al usuario
-    const goal = await prisma.goal.findUnique({
+    // Verificar que el gasto pertenece al usuario
+    const expense = await prisma.expense.findUnique({
       where: {
         id: params.id
       }
     });
     
-    if (!goal || goal.userId !== session.user.id) {
+    if (!expense || expense.userId !== session.user.id) {
       return NextResponse.json(
-        { error: "Meta no encontrada o no autorizada" },
+        { error: "Gasto no encontrado o no autorizado" },
         { status: 404 }
       );
     }
     
-    await prisma.goal.delete({
+    await prisma.expense.delete({
       where: { id: params.id }
     });
     
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error deleting goal:", error);
+    console.error("Error deleting expense:", error);
     return NextResponse.json(
-      { error: "Error al eliminar la meta" },
+      { error: "Error al eliminar el gasto" },
       { status: 500 }
     );
   }
-}
+} 

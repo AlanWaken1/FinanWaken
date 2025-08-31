@@ -9,8 +9,12 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { IconCreditCard, IconCash } from "@tabler/icons-react";
+import { IconCreditCard, IconCash, IconPencil, IconTrash, IconPlus, IconArrowUpRight, IconArrowDownRight, IconTrendingUp } from "@tabler/icons-react";
 import { Progress } from "@/components/ui/progress";
+import { toast } from "react-hot-toast";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
+import { es } from "date-fns/locale";
 
 // Interfaces
 interface DebtPayment {
@@ -41,6 +45,8 @@ export default function DebtsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedDebt, setSelectedDebt] = useState<Debt | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [activeTab, setActiveTab] = useState("active");
   
   // Estado para el formulario de deuda
   const [debtForm, setDebtForm] = useState({
@@ -60,6 +66,11 @@ export default function DebtsPage() {
     notes: "",
     debtId: ""
   });
+  
+  const [timeRange, setTimeRange] = useState("month");
+  const [totalDebt, setTotalDebt] = useState(0);
+  const [previousTotal, setPreviousTotal] = useState(0);
+  const [paidDebt, setPaidDebt] = useState(0);
   
   // Cargar las deudas al montar el componente
   useEffect(() => {
@@ -82,6 +93,41 @@ export default function DebtsPage() {
     fetchDebts();
   }, []);
   
+  // Calcular totales
+  useEffect(() => {
+    if (debts.length > 0) {
+      const now = new Date();
+      const startOfCurrentMonth = startOfMonth(now);
+      const endOfCurrentMonth = endOfMonth(now);
+      const startOfPreviousMonth = startOfMonth(subMonths(now, 1));
+      const endOfPreviousMonth = endOfMonth(subMonths(now, 1));
+
+      const currentMonthDebts = debts.filter(debt => {
+        const debtDate = new Date(debt.startDate);
+        return debtDate >= startOfCurrentMonth && debtDate <= endOfCurrentMonth;
+      });
+
+      const previousMonthDebts = debts.filter(debt => {
+        const debtDate = new Date(debt.startDate);
+        return debtDate >= startOfPreviousMonth && debtDate <= endOfPreviousMonth;
+      });
+
+      const currentTotal = currentMonthDebts.reduce((sum, debt) => sum + debt.totalAmount, 0);
+      const previousTotal = previousMonthDebts.reduce((sum, debt) => sum + debt.totalAmount, 0);
+      const paid = debts.reduce((sum, debt) => sum + (debt.totalAmount - debt.remaining), 0);
+
+      setTotalDebt(currentTotal);
+      setPreviousTotal(previousTotal);
+      setPaidDebt(paid);
+    }
+  }, [debts]);
+  
+  // Calcular el cambio porcentual
+  const calculateChange = () => {
+    if (previousTotal === 0) return 0;
+    return ((totalDebt - previousTotal) / previousTotal) * 100;
+  };
+  
   // Manejar cambios en el formulario de deuda
   const handleDebtFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -99,13 +145,58 @@ export default function DebtsPage() {
     setPaymentForm(prev => ({ ...prev, [name]: value }));
   };
   
-  // Enviar el formulario de deuda
+  // Manejar edición de deuda
+  const handleEdit = (debt: Debt) => {
+    setSelectedDebt(debt);
+    setDebtForm({
+      title: debt.title,
+      totalAmount: debt.totalAmount.toString(),
+      remaining: debt.remaining.toString(),
+      creditor: debt.creditor,
+      startDate: new Date(debt.startDate).toISOString().split("T")[0],
+      dueDate: debt.dueDate ? new Date(debt.dueDate).toISOString().split("T")[0] : "",
+      userId: debt.userId
+    });
+    setIsEditing(true);
+    setActiveTab("new");
+  };
+  
+  // Manejar eliminación de deuda
+  const handleDelete = async (id: string) => {
+    if (!confirm("¿Estás seguro de que deseas eliminar esta deuda?")) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/debts/${id}`, {
+        method: "DELETE"
+      });
+      
+      if (!response.ok) {
+        throw new Error("Error al eliminar la deuda");
+      }
+      
+      setDebts(prev => prev.filter(debt => debt.id !== id));
+      toast.success("Deuda eliminada correctamente");
+    } catch (error) {
+      console.error("Error:", error);
+      toast.error("Error al eliminar la deuda");
+    }
+  };
+  
+  // Manejar envío del formulario de deuda
   const handleDebtSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     try {
-      const response = await fetch("/api/debts", {
-        method: "POST",
+      const url = isEditing 
+        ? `/api/debts/${selectedDebt?.id}`
+        : "/api/debts";
+      
+      const method = isEditing ? "PATCH" : "POST";
+      
+      const response = await fetch(url, {
+        method,
         headers: {
           "Content-Type": "application/json",
         },
@@ -113,15 +204,22 @@ export default function DebtsPage() {
       });
       
       if (!response.ok) {
-        throw new Error("Error al crear la deuda");
+        throw new Error(isEditing ? "Error al actualizar la deuda" : "Error al crear la deuda");
       }
       
-      const newDebt = await response.json();
+      const data = await response.json();
       
-      // Actualizar la lista de deudas
-      setDebts(prev => [newDebt, ...prev]);
+      if (isEditing) {
+        setDebts(prev => prev.map(debt => 
+          debt.id === selectedDebt?.id ? data : debt
+        ));
+        toast.success("Deuda actualizada correctamente");
+      } else {
+        setDebts(prev => [data, ...prev]);
+        toast.success("Deuda creada correctamente");
+      }
       
-      // Limpiar el formulario
+      // Limpiar formulario
       setDebtForm({
         title: "",
         totalAmount: "",
@@ -132,8 +230,12 @@ export default function DebtsPage() {
         userId: "1"
       });
       
+      setIsEditing(false);
+      setSelectedDebt(null);
+      
     } catch (error) {
       console.error("Error:", error);
+      toast.error(isEditing ? "Error al actualizar la deuda" : "Error al crear la deuda");
     }
   };
   
@@ -200,252 +302,266 @@ export default function DebtsPage() {
   
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold">Gestión de Deudas</h1>
-        <IconCreditCard className="h-8 w-8 text-orange-500" />
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-3xl font-bold">Deudas</h1>
+          <p className="text-muted-foreground mt-1">
+            {format(new Date(), "MMMM yyyy", { locale: es })}
+          </p>
+        </div>
+        <Button 
+          onClick={() => {
+            setIsEditing(false);
+            setSelectedDebt(null);
+            setDebtForm({
+              title: "",
+              totalAmount: "",
+              remaining: "",
+              creditor: "",
+              startDate: new Date().toISOString().split("T")[0],
+              dueDate: "",
+              userId: "1"
+            });
+            setIsDialogOpen(true);
+          }}
+          className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700"
+        >
+          <IconPlus className="h-4 w-4 mr-2" />
+          Nueva Deuda
+        </Button>
       </div>
-      
-      <Tabs defaultValue="active">
-        <TabsList className="mb-4">
-          <TabsTrigger value="active">Deudas Activas</TabsTrigger>
-          <TabsTrigger value="paid">Deudas Pagadas</TabsTrigger>
-          <TabsTrigger value="new">Nueva Deuda</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="active">
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {loading ? (
-              <p>Cargando deudas...</p>
-            ) : debts.filter(debt => !debt.isPaid).length === 0 ? (
-              <p>No tienes deudas activas.</p>
-            ) : (
-              debts
-                .filter(debt => !debt.isPaid)
-                .map(debt => (
-                  <Card key={debt.id}>
-                    <CardHeader>
-                      <CardTitle>{debt.title}</CardTitle>
-                      <CardDescription>{debt.creditor}</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        <div className="flex justify-between">
-                          <span>Total:</span>
-                          <span>${parseFloat(debt.totalAmount.toString()).toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Restante:</span>
-                          <span>${parseFloat(debt.remaining.toString()).toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Fecha inicio:</span>
-                          <span>{formatDate(debt.startDate)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Fecha vencimiento:</span>
-                          <span>{formatDate(debt.dueDate)}</span>
-                        </div>
-                        <div className="pt-2">
-                          <div className="flex justify-between mb-1">
-                            <span className="text-sm">Progreso de pago:</span>
-                            <span className="text-sm">{calculatePaidPercentage(debt)}%</span>
-                          </div>
-                          <Progress value={calculatePaidPercentage(debt)} className="h-2" />
-                        </div>
-                      </div>
-                    </CardContent>
-                    <CardFooter>
-                      <Button 
-                        className="w-full"
-                        onClick={() => openPaymentDialog(debt)}
+
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
+        <Card className="bg-gradient-to-br from-purple-50 to-indigo-50 border-none shadow-sm">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <IconCreditCard className="h-6 w-6 text-purple-600" />
+              </div>
+              <span className="text-sm font-medium text-purple-600">Total Deuda</span>
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-2xl font-bold">${totalDebt.toFixed(2)}</h3>
+              <div className="flex items-center text-sm">
+                {calculateChange() >= 0 ? (
+                  <IconArrowUpRight className="h-4 w-4 text-purple-600 mr-1" />
+                ) : (
+                  <IconArrowDownRight className="h-4 w-4 text-green-600 mr-1" />
+                )}
+                <span className={calculateChange() >= 0 ? "text-purple-600" : "text-green-600"}>
+                  {Math.abs(calculateChange()).toFixed(1)}% vs mes anterior
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-none shadow-sm">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <IconTrendingUp className="h-6 w-6 text-blue-600" />
+              </div>
+              <span className="text-sm font-medium text-blue-600">Pagado</span>
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-2xl font-bold">${paidDebt.toFixed(2)}</h3>
+              <p className="text-sm text-muted-foreground">
+                {((paidDebt / totalDebt) * 100).toFixed(1)}% del total
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="border-none shadow-sm">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-semibold">Historial de Deudas</h2>
+            <Select value={timeRange} onValueChange={setTimeRange}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Seleccionar período" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="week">Esta semana</SelectItem>
+                <SelectItem value="month">Este mes</SelectItem>
+                <SelectItem value="year">Este año</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {loading ? (
+            <div className="flex justify-center items-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
+            </div>
+          ) : debts.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="bg-purple-50 rounded-full p-4 w-fit mx-auto mb-4">
+                <IconCreditCard className="h-8 w-8 text-purple-500" />
+              </div>
+              <h3 className="text-lg font-medium mb-2">No hay deudas registradas</h3>
+              <p className="text-muted-foreground mb-4">
+                Comienza registrando tu primera deuda
+              </p>
+              <Button 
+                variant="outline"
+                onClick={() => {
+                  setIsEditing(false);
+                  setSelectedDebt(null);
+                  setDebtForm({
+                    title: "",
+                    totalAmount: "",
+                    remaining: "",
+                    creditor: "",
+                    startDate: new Date().toISOString().split("T")[0],
+                    dueDate: "",
+                    userId: "1"
+                  });
+                  setIsDialogOpen(true);
+                }}
+              >
+                <IconPlus className="h-4 w-4 mr-2" />
+                Agregar Deuda
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {debts.map(debt => (
+                <div 
+                  key={debt.id}
+                  className="flex items-center justify-between p-4 rounded-lg border border-border/50 hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="p-2 bg-purple-100 rounded-lg">
+                      <IconCreditCard className="h-5 w-5 text-purple-600" />
+                    </div>
+                    <div>
+                      <h4 className="font-medium">{debt.title}</h4>
+                      <p className="text-sm text-muted-foreground">
+                        {format(new Date(debt.startDate), "d 'de' MMMM", { locale: es })}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <span className="font-medium text-purple-600 block">
+                        ${parseFloat(debt.remaining.toString()).toFixed(2)}
+                      </span>
+                      <span className="text-sm text-muted-foreground">
+                        de ${parseFloat(debt.totalAmount.toString()).toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleEdit(debt)}
+                        className="hover:bg-purple-50"
                       >
-                        Registrar Pago
+                        <IconPencil className="h-4 w-4" />
                       </Button>
-                    </CardFooter>
-                  </Card>
-                ))
-            )}
-          </div>
-        </TabsContent>
-        
-        <TabsContent value="paid">
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {loading ? (
-              <p>Cargando deudas...</p>
-            ) : debts.filter(debt => debt.isPaid).length === 0 ? (
-              <p>No tienes deudas pagadas.</p>
-            ) : (
-              debts
-                .filter(debt => debt.isPaid)
-                .map(debt => (
-                  <Card key={debt.id}>
-                    <CardHeader>
-                      <CardTitle>{debt.title}</CardTitle>
-                      <CardDescription>{debt.creditor}</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        <div className="flex justify-between">
-                          <span>Total pagado:</span>
-                          <span>${parseFloat(debt.totalAmount.toString()).toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Fecha inicio:</span>
-                          <span>{formatDate(debt.startDate)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Fecha finalización:</span>
-                          <span>
-                            {debt.payments.length > 0 
-                              ? formatDate(debt.payments[debt.payments.length - 1].date) 
-                              : "-"}
-                          </span>
-                        </div>
-                        <div className="pt-2">
-                          <div className="flex justify-between mb-1">
-                            <span className="text-sm">Estado:</span>
-                            <span className="text-sm text-green-500">Pagada</span>
-                          </div>
-                          <Progress value={100} className="h-2" />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
-            )}
-          </div>
-        </TabsContent>
-        
-        <TabsContent value="new">
-          <Card>
-            <CardHeader>
-              <CardTitle>Registrar Nueva Deuda</CardTitle>
-              <CardDescription>Ingresa los detalles de tu deuda</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleDebtSubmit} className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="title">Título</Label>
-                    <Input
-                      id="title"
-                      name="title"
-                      placeholder="Ej: Préstamo personal"
-                      value={debtForm.title}
-                      onChange={handleDebtFormChange}
-                      required
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="creditor">Acreedor</Label>
-                    <Input
-                      id="creditor"
-                      name="creditor"
-                      placeholder="Ej: Banco XYZ"
-                      value={debtForm.creditor}
-                      onChange={handleDebtFormChange}
-                      required
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="totalAmount">Monto Total</Label>
-                    <Input
-                      id="totalAmount"
-                      name="totalAmount"
-                      type="number"
-                      step="0.01"
-                      placeholder="0.00"
-                      value={debtForm.totalAmount}
-                      onChange={handleDebtFormChange}
-                      required
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="startDate">Fecha de Inicio</Label>
-                    <Input
-                      id="startDate"
-                      name="startDate"
-                      type="date"
-                      value={debtForm.startDate}
-                      onChange={handleDebtFormChange}
-                      required
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="dueDate">Fecha de Vencimiento (Opcional)</Label>
-                    <Input
-                      id="dueDate"
-                      name="dueDate"
-                      type="date"
-                      value={debtForm.dueDate}
-                      onChange={handleDebtFormChange}
-                    />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDelete(debt.id)}
+                        className="hover:bg-red-50"
+                      >
+                        <IconTrash className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
-                
-                <Button type="submit" className="w-full">
-                  Guardar Deuda
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-      
-      {/* Diálogo de pago */}
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Diálogo para crear/editar deuda */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Registrar Pago</DialogTitle>
+            <DialogTitle>{isEditing ? "Editar Deuda" : "Nueva Deuda"}</DialogTitle>
             <DialogDescription>
-              {selectedDebt ? `Deuda: ${selectedDebt.title} - Acreedor: ${selectedDebt.creditor}` : ''}
+              {isEditing ? "Modifica los datos de la deuda" : "Registra una nueva deuda en tu presupuesto"}
             </DialogDescription>
           </DialogHeader>
           
-          <form onSubmit={handlePaymentSubmit} className="space-y-4">
+          <form onSubmit={handleDebtSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="amount">Monto a Pagar</Label>
+              <Label htmlFor="title">Título</Label>
               <Input
-                id="amount"
-                name="amount"
+                id="title"
+                name="title"
+                placeholder="Ej: Préstamo Auto"
+                value={debtForm.title}
+                onChange={handleDebtFormChange}
+                required
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="totalAmount">Monto Total</Label>
+              <Input
+                id="totalAmount"
+                name="totalAmount"
                 type="number"
                 step="0.01"
                 placeholder="0.00"
-                value={paymentForm.amount}
-                onChange={handlePaymentFormChange}
+                value={debtForm.totalAmount}
+                onChange={handleDebtFormChange}
                 required
+                className="text-lg"
               />
-              {selectedDebt && (
-                <p className="text-xs text-muted-foreground">
-                  Monto restante: ${parseFloat(selectedDebt.remaining.toString()).toFixed(2)}
-                </p>
-              )}
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="date">Fecha de Pago</Label>
+              <Label htmlFor="remaining">Monto Restante</Label>
               <Input
-                id="date"
-                name="date"
+                id="remaining"
+                name="remaining"
+                type="number"
+                step="0.01"
+                placeholder="0.00"
+                value={debtForm.remaining}
+                onChange={handleDebtFormChange}
+                required
+                className="text-lg"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="creditor">Acreedor</Label>
+              <Input
+                id="creditor"
+                name="creditor"
+                placeholder="Ej: Banco XYZ"
+                value={debtForm.creditor}
+                onChange={handleDebtFormChange}
+                required
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="startDate">Fecha de Inicio</Label>
+              <Input
+                id="startDate"
+                name="startDate"
                 type="date"
-                value={paymentForm.date}
-                onChange={handlePaymentFormChange}
+                value={debtForm.startDate}
+                onChange={handleDebtFormChange}
                 required
               />
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="notes">Notas (Opcional)</Label>
+              <Label htmlFor="dueDate">Fecha de Vencimiento</Label>
               <Input
-                id="notes"
-                name="notes"
-                placeholder="Ej: Pago mensual"
-                value={paymentForm.notes}
-                onChange={handlePaymentFormChange}
+                id="dueDate"
+                name="dueDate"
+                type="date"
+                value={debtForm.dueDate}
+                onChange={handleDebtFormChange}
               />
             </div>
             
@@ -457,8 +573,11 @@ export default function DebtsPage() {
               >
                 Cancelar
               </Button>
-              <Button type="submit">
-                Registrar Pago
+              <Button 
+                type="submit"
+                className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700"
+              >
+                {isEditing ? "Actualizar Deuda" : "Guardar Deuda"}
               </Button>
             </div>
           </form>

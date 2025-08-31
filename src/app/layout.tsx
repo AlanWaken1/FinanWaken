@@ -11,6 +11,27 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "FinanWaken - Control de Finanzas Personales",
   description: "Aplicación para el seguimiento y control de tus finanzas personales",
+  manifest: "/manifest.json",
+  themeColor: "#000000",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "FinanWaken",
+  },
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+  },
+  icons: {
+    icon: [
+      { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [
+      { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
+    ],
+  },
 };
 
 function ThemeInitScript() {
@@ -39,6 +60,7 @@ export default function RootLayout({
   return (
     <html lang="es" suppressHydrationWarning>
       <head>
+      <meta name="apple-mobile-web-app-title" content="FinanWaken" />
         <ThemeInitScript />
       </head>
       <body className={`${inter.className} bg-background text-foreground`}>
